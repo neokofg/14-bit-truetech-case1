@@ -61,9 +61,9 @@ const TranscriptionPanel: FC<{
   showSummary: boolean;
 }> = ({ entries, onVoiceText, showSummary }) => {
   return (
-      <div className="space-y-4">
+      <div className="flex flex-col-reverse space-y-4">
         {entries.map((entry, index) => (
-            <div key={index} className="flex items-start flex-col-reverse gap-3">
+            <div key={index} className="flex items-start gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
                 P1
               </div>
