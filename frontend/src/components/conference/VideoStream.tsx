@@ -123,13 +123,11 @@ export const VideoStream: FC<VideoStreamProps> = ({
         }
         const time = new Date().toLocaleTimeString();
 
-        // Если выбран русский, используем оригинальный текст
         if (language === "ru") {
           setCurrentSubtitle(originalText);
           onSubtitleChange({ time, text: originalText });
           setDebugInfo((prev) => prev + "\nReceived subtitle: " + originalText);
         } else {
-          // Иначе переводим субтитр
           (async () => {
             try {
               const targetLangFull = languageMap[language] || "Russian";

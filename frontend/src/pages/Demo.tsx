@@ -1,5 +1,5 @@
 // Demo.tsx
-import { FC, useState } from 'react';
+import {FC, useEffect, useRef, useState} from 'react';
 import { SupportedLanguage } from '@/types/language';
 import { Button, Card, CardBody, Select, SelectItem } from "@heroui/react";
 import { VideoStream } from '@/components/conference/VideoStream';
@@ -147,6 +147,57 @@ const Demo: FC = () => {
       { time, text, timestamp: new Date().toISOString() }
     ]);
   };
+
+  const transcriptTextRef = useRef<string>("");
+  useEffect(() => {
+    transcriptTextRef.current = transcriptEntries.map((e) => e.text).join(" ");
+  }, [transcriptEntries]);
+
+  const performSummarization = async () => {
+    const fullText = transcriptTextRef.current;
+    if (!fullText.trim()) return;
+    try {
+      const response = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: fullText })
+      });
+      if (!response.ok) {
+        throw new Error("Ошибка суммаризации");
+      }
+      const data = await response.json();
+      const summaryText = data.summary;
+      const time = new Date().toLocaleTimeString();
+      setSummaryEntries((prev) => [
+        ...prev,
+        { time, text: summaryText, timestamp: new Date().toISOString() }
+      ]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const summaryIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (showSummary) {
+      // Выполнить суммаризацию сразу
+      performSummarization();
+      summaryIntervalRef.current = setInterval(() => {
+        performSummarization();
+      }, 25000);
+    } else {
+      if (summaryIntervalRef.current) {
+        clearInterval(summaryIntervalRef.current);
+        summaryIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (summaryIntervalRef.current) {
+        clearInterval(summaryIntervalRef.current);
+        summaryIntervalRef.current = null;
+      }
+    };
+  }, [showSummary]);
   const handleSummaryChange = ({ time, text }: { time: string, text: string }) => {
     setSummaryEntries(prev => [
       ...prev,
