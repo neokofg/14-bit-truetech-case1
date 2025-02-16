@@ -4,7 +4,6 @@ import { SubtitleSettings, defaultSettings } from "./SubtitleSettings";
 import { SupportedLanguage } from "@/types/language";
 
 interface VideoStreamProps {
-  language: SupportedLanguage;
   onSubtitleChange: (data: { time: string; text: string }) => void;
   onSummaryChange: (data: { time: string; text: string }) => void;
   onPermissionGranted?: () => void;
@@ -13,11 +12,13 @@ interface VideoStreamProps {
 }
 
 export const VideoStream: FC<VideoStreamProps> = ({
-                                                    language,
                                                     onSubtitleChange,
                                                     onPermissionGranted,
                                                     onPermissionDenied,
                                                   }) => {
+  // Локальное состояние для выбранного языка
+  const [language, setLanguage] = useState<SupportedLanguage>("ru");
+
   const [status, setStatus] = useState<"idle" | "waiting" | "streaming" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
@@ -28,7 +29,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const [subtitleSettings] = useState<SubtitleSettings>(defaultSettings);
 
-  // Маппинг выбранного языка в название для API перевода
+  // Маппинг выбранного языка для API перевода
   const languageMap: Record<SupportedLanguage, string> = {
     ru: "Russian",
     en: "English",
@@ -50,7 +51,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
       throw new Error("Ошибка перевода");
     }
     const data = await response.json();
-    // Ожидается, что ответ имеет формат: { "translation": "..." }
+    // Ожидается ответ вида: { "translation": "..." }
     return data.translation;
   };
 
@@ -60,7 +61,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
     setDebugInfo("Starting stream...");
 
     try {
-      // Получаем стрим
+      // Получаем стрим с камеры и микрофона
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: {
@@ -78,7 +79,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
       const settings = audioTrack.getSettings();
       setDebugInfo((prev) => prev + `\nAudio track settings: ${JSON.stringify(settings)}`);
 
-      // Создаем AudioContext без явного указания sampleRate
+      // Создаем AudioContext без указания sampleRate
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
 
@@ -118,28 +119,36 @@ export const VideoStream: FC<VideoStreamProps> = ({
 
       ws.onmessage = (event) => {
         let originalText = event.data as string;
-        if (originalText == 'Субтитры сделал DimaTorzok ') {
-          originalText = 'Тишина...';
+        if (originalText == 'Субтитры сделал DimaTorzok') {
+          originalText = 'Тишина';
         }
-        // Асинхронно переводим субтитр сразу после получения
-        (async () => {
-          try {
-            // Исходный язык субтитров — русский, а целевой определяется выбранным языком
-            const targetLangFull = languageMap[language] || "Russian";
-            const translatedText = await translateText(originalText, "Russian", targetLangFull);
-            setCurrentSubtitle(translatedText);
-            const time = new Date().toLocaleTimeString();
-            onSubtitleChange({ time, text: translatedText });
-            setDebugInfo((prev) => prev + "\nReceived subtitle: " + originalText + " -> " + translatedText);
-          } catch (error) {
-            console.error("Subtitle translation error:", error);
-            // В случае ошибки используем оригинальный текст
-            setCurrentSubtitle(originalText);
-            const time = new Date().toLocaleTimeString();
-            onSubtitleChange({ time, text: originalText });
-            setDebugInfo((prev) => prev + "\nReceived subtitle (untranslated): " + originalText);
-          }
-        })();
+
+        // Если выбран язык русский, не переводим субтитры
+        if (language === "ru") {
+          setCurrentSubtitle(originalText);
+          const time = new Date().toLocaleTimeString();
+          onSubtitleChange({ time, text: originalText });
+          setDebugInfo((prev) => prev + "\nReceived subtitle: " + originalText);
+        } else {
+          // Если выбран другой язык, выполняем перевод
+          (async () => {
+            try {
+              const targetLangFull = languageMap[language] || "Russian";
+              const translatedText = await translateText(originalText, "Russian", targetLangFull);
+              setCurrentSubtitle(translatedText);
+              const time = new Date().toLocaleTimeString();
+              onSubtitleChange({ time, text: translatedText });
+              setDebugInfo((prev) => prev + "\nReceived subtitle: " + originalText + " -> " + translatedText);
+            } catch (error) {
+              console.error("Subtitle translation error:", error);
+              // При ошибке выводим оригинальный текст
+              setCurrentSubtitle(originalText);
+              const time = new Date().toLocaleTimeString();
+              onSubtitleChange({ time, text: originalText });
+              setDebugInfo((prev) => prev + "\nReceived subtitle (untranslated): " + originalText);
+            }
+          })();
+        }
       };
 
       ws.onopen = () => {
@@ -193,6 +202,18 @@ export const VideoStream: FC<VideoStreamProps> = ({
   return (
       <Card>
         <CardBody className="p-0 relative aspect-video max-h-[480px]">
+          {/* Элемент для выбора языка, который изменяет состояние */}
+          <div className="absolute top-2 right-2 z-10">
+            <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as SupportedLanguage)}
+                className="p-1 rounded"
+            >
+              <option value="ru">Русский</option>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+            </select>
+          </div>
           <video
               ref={videoRef}
               autoPlay
@@ -247,9 +268,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
                 </div>
               </div>
           )}
-          <div
-              className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2 font-mono whitespace-pre-wrap"
-          >
+          <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2 font-mono whitespace-pre-wrap">
             {debugInfo.split("\n").slice(-10).join("\n")}
           </div>
         </CardBody>
