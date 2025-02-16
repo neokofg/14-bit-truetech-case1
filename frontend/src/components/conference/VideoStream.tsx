@@ -119,7 +119,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
 
       ws.onmessage = (event) => {
         let originalText = event.data as string;
-        if (originalText == 'Субтитры сделал DimaTorzok') {
+        if (originalText == 'Субтитры сделал DimaTorzok' || originalText == 'Редактор субтитров А.Семкин Корректор А.Егорова') {
           originalText = 'Тишина';
         }
 
