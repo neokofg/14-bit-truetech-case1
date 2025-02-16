@@ -50,12 +50,11 @@ export const VideoStream: FC<VideoStreamProps> = ({
       // Получаем актуальный sample rate из трека
       const audioTrack = stream.getAudioTracks()[0];
       const settings = audioTrack.getSettings();
-      const actualSampleRate = settings.sampleRate || 48000;
 
       setDebugInfo(prev => prev + `\nAudio track settings: ${JSON.stringify(settings)}`);
 
       // Создаем AudioContext с правильным sample rate
-      const audioContext = new AudioContext({ sampleRate: actualSampleRate });
+      const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
 
       const source = audioContext.createMediaStreamSource(stream);
