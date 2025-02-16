@@ -93,7 +93,10 @@ export const VideoStream: FC<VideoStreamProps> = ({
       };
 
       ws.onmessage = (event) => {
-        const text = event.data;
+        let text = event.data;
+        if (text == 'Субтитры сделал DimaTorzok') {
+          text = 'Тишина';
+        }
         setCurrentSubtitle(text);
         const time = new Date().toLocaleTimeString();
         onSubtitleChange({ time, text });
