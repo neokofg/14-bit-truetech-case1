@@ -117,7 +117,10 @@ export const VideoStream: FC<VideoStreamProps> = ({
       };
 
       ws.onmessage = (event) => {
-        const originalText = event.data as string;
+        let originalText = event.data as string;
+        if (originalText == 'Субтитры сделал DimaTorzok ') {
+          originalText = 'Тишина...';
+        }
         // Асинхронно переводим субтитр сразу после получения
         (async () => {
           try {
