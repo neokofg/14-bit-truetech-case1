@@ -3,20 +3,21 @@ import { FC, useState } from 'react';
 import { Button, Input, Card, CardBody, Select, SelectItem, Popover, PopoverTrigger, PopoverContent } from "@heroui/react";
 import { Settings } from "lucide-react";
 
+// SubtitleSettings.ts
+// SubtitleSettings.ts
 export interface SubtitleSettings {
-  fontSize: number;
-  textColor: string;
-  backgroundColor: string;
   bottomOffset: number;
+  backgroundColor: string;
+  textColor: string;
   fontFamily: string;
+  fontSize: number;
 }
-
 export const defaultSettings: SubtitleSettings = {
-  fontSize: 24,
+  bottomOffset: 20,
+  backgroundColor: "rgba(0, 0, 0, 0.6)",
   textColor: "#FFFFFF",
-  backgroundColor: "rgba(0, 0, 0, 0.7)",
-  bottomOffset: 50,
-  fontFamily: "Inter"
+  fontFamily: "Arial, sans-serif",
+  fontSize: 24,
 };
 
 interface SubtitleSettingsProps {
