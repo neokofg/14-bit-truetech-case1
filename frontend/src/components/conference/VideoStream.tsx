@@ -62,7 +62,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
       const processor = audioContext.createScriptProcessor(1024, 1, 1);
 
       // Создаем WebSocket соединение
-      const ws = new WebSocket('ws://89.111.153.250:8000/ws');
+      const ws = new WebSocket('/ws');
       wsRef.current = ws;
 
       source.connect(processor);

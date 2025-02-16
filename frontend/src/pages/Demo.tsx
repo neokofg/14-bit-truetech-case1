@@ -97,7 +97,7 @@ const Demo: FC = () => {
       sourceLang: string,
       targetLang: string
   ): Promise<string> => {
-    const response = await fetch("http://89.111.153.250:8000/api/translate", {
+    const response = await fetch("/api/translate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, source_lang: sourceLang, target_lang: targetLang })
@@ -125,7 +125,7 @@ const Demo: FC = () => {
       const translatedText = await translateText(text, sourceLang, targetLang);
 
       // Затем отправляем переведённый текст в TTS
-      const ttsResponse = await fetch("http://89.111.153.250:8000/api/tts", {
+      const ttsResponse = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: translatedText, language: selectedLanguage })
