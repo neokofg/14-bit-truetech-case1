@@ -92,17 +92,48 @@ const Demo: FC = () => {
   const [showSummary, setShowSummary] = useState(false);
   const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([]);
   const [summaryEntries, setSummaryEntries] = useState<TranscriptEntry[]>([]);
+  const translateText = async (
+      text: string,
+      sourceLang: string,
+      targetLang: string
+  ): Promise<string> => {
+    const response = await fetch("http://89.111.153.250:8000/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, source_lang: sourceLang, target_lang: targetLang })
+    });
+    if (!response.ok) {
+      throw new Error("Ошибка перевода");
+    }
+    const data = await response.json();
+    // Используем поле translation из ответа
+    return data.translation;
+  };
+  const languageMap: Record<SupportedLanguage, string> = {
+    ru: "Russian",
+    en: "English",
+    es: "Spanish",
+  };
   const handleVoiceText = async (text: string) => {
     try {
-      const response = await fetch('http://89.111.153.250:8000/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, language: selectedLanguage })
+      // Определяем исходный язык из выбранного языка (SelectedLang)
+      const sourceLang = "Russian";
+      // Задаём целевой язык. Здесь по умолчанию переводим на английский.
+      const targetLang = languageMap[selectedLanguage] || "English";
+
+      // Переводим текст перед отправкой в TTS
+      const translatedText = await translateText(text, sourceLang, targetLang);
+
+      // Затем отправляем переведённый текст в TTS
+      const ttsResponse = await fetch("http://89.111.153.250:8000/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: translatedText, language: selectedLanguage })
       });
-      if (!response.ok) {
-        throw new Error('Ошибка озвучивания текста');
+      if (!ttsResponse.ok) {
+        throw new Error("Ошибка озвучивания текста");
       }
-      const blob = await response.blob();
+      const blob = await ttsResponse.blob();
       const audioUrl = URL.createObjectURL(blob);
       const audio = new Audio(audioUrl);
       audio.play();
@@ -139,9 +170,9 @@ const Demo: FC = () => {
                     onChange={(e) => setSelectedLanguage(e.target.value as SupportedLanguage)}
                     className="w-48"
                 >
-                  <SelectItem key="Русский" value="Русский">Русский</SelectItem>
-                  <SelectItem key="English" value="English">English</SelectItem>
-                  <SelectItem key="Испанский" value="Испанский">Español</SelectItem>
+                  <SelectItem key="ru" value="ru">Русский</SelectItem>
+                  <SelectItem key="en" value="en">English</SelectItem>
+                  <SelectItem key="es" value="es">Español</SelectItem>
                 </Select>
               </div>
             </div>
