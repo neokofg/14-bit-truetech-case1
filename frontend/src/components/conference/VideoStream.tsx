@@ -28,32 +28,57 @@ export const VideoStream: FC<VideoStreamProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const [subtitleSettings] = useState<SubtitleSettings>(defaultSettings);
 
+  // Маппинг выбранного языка в название для API перевода
+  const languageMap: Record<SupportedLanguage, string> = {
+    ru: "Russian",
+    en: "English",
+    es: "Spanish",
+  };
+
+  // Функция перевода текста
+  const translateText = async (
+      text: string,
+      sourceLang: string,
+      targetLang: string
+  ): Promise<string> => {
+    const response = await fetch("http://89.111.153.250:8000/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, source_lang: sourceLang, target_lang: targetLang }),
+    });
+    if (!response.ok) {
+      throw new Error("Ошибка перевода");
+    }
+    const data = await response.json();
+    // Ожидается, что ответ имеет формат: { "translation": "..." }
+    return data.translation;
+  };
+
   const startStream = async () => {
     setStatus("waiting");
     setErrorMessage("");
     setDebugInfo("Starting stream...");
 
     try {
-      // Сначала получаем стрим
+      // Получаем стрим
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: {
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
-        }
+        },
       });
 
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
 
-      // Получаем актуальный sample rate из трека
+      // Логируем настройки аудио трека
       const audioTrack = stream.getAudioTracks()[0];
       const settings = audioTrack.getSettings();
+      setDebugInfo((prev) => prev + `\nAudio track settings: ${JSON.stringify(settings)}`);
 
-      setDebugInfo(prev => prev + `\nAudio track settings: ${JSON.stringify(settings)}`);
-
-      // Создаем AudioContext с правильным sample rate
+      // Создаем AudioContext без явного указания sampleRate
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
 
@@ -84,7 +109,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
           const maxAmplitude = Math.max(...Array.from(intData).map(Math.abs));
           console.log('Sending audio chunk:', {
             length: intData.length,
-            maxAmplitude: maxAmplitude
+            maxAmplitude: maxAmplitude,
           });
 
           ws.send(intData.buffer);
@@ -92,30 +117,42 @@ export const VideoStream: FC<VideoStreamProps> = ({
       };
 
       ws.onmessage = (event) => {
-        let text = event.data;
-        if (text == 'Субтитры сделал DimaTorzok') {
-          text = 'Тишина';
-        }
-        setCurrentSubtitle(text);
-        const time = new Date().toLocaleTimeString();
-        onSubtitleChange({ time, text });
-        setDebugInfo(prev => prev + "\nReceived subtitle: " + text);
+        const originalText = event.data as string;
+        // Асинхронно переводим субтитр сразу после получения
+        (async () => {
+          try {
+            // Исходный язык субтитров — русский, а целевой определяется выбранным языком
+            const targetLangFull = languageMap[language] || "Russian";
+            const translatedText = await translateText(originalText, "Russian", targetLangFull);
+            setCurrentSubtitle(translatedText);
+            const time = new Date().toLocaleTimeString();
+            onSubtitleChange({ time, text: translatedText });
+            setDebugInfo((prev) => prev + "\nReceived subtitle: " + originalText + " -> " + translatedText);
+          } catch (error) {
+            console.error("Subtitle translation error:", error);
+            // В случае ошибки используем оригинальный текст
+            setCurrentSubtitle(originalText);
+            const time = new Date().toLocaleTimeString();
+            onSubtitleChange({ time, text: originalText });
+            setDebugInfo((prev) => prev + "\nReceived subtitle (untranslated): " + originalText);
+          }
+        })();
       };
 
       ws.onopen = () => {
         setStatus("streaming");
         onPermissionGranted && onPermissionGranted();
-        setDebugInfo(prev => prev + "\nWebSocket connected");
+        setDebugInfo((prev) => prev + "\nWebSocket connected");
       };
 
       ws.onerror = (error) => {
-        setDebugInfo(prev => prev + "\nWebSocket error: " + error);
+        setDebugInfo((prev) => prev + "\nWebSocket error: " + error);
         setStatus("error");
         setErrorMessage("Ошибка подключения к серверу");
       };
 
       ws.onclose = () => {
-        setDebugInfo(prev => prev + "\nWebSocket closed");
+        setDebugInfo((prev) => prev + "\nWebSocket closed");
         if (status === "streaming") {
           setStatus("error");
           setErrorMessage("Соединение прервано");
@@ -123,7 +160,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
       };
 
     } catch (err) {
-      setDebugInfo(prev => prev + "\nStream error: " + String(err));
+      setDebugInfo((prev) => prev + "\nStream error: " + String(err));
       let message = "Ошибка доступа к камере";
       if (err instanceof Error) {
         if (err.name === "NotAllowedError") message = "Доступ к камере запрещён";
@@ -153,17 +190,31 @@ export const VideoStream: FC<VideoStreamProps> = ({
   return (
       <Card>
         <CardBody className="p-0 relative aspect-video max-h-[480px]">
-          <video ref={videoRef} autoPlay muted playsInline className={`w-full h-full object-cover rounded-lg ${status !== "streaming" ? "hidden" : ""}`} />
+          <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`w-full h-full object-cover rounded-lg ${status !== "streaming" ? "hidden" : ""}`}
+          />
           {status === "streaming" && currentSubtitle && (
-              <div className="absolute left-0 right-0 px-4 py-2" style={{
-                bottom: `${subtitleSettings.bottomOffset}px`,
-                background: subtitleSettings.backgroundColor,
-                fontFamily: subtitleSettings.fontFamily
-              }}>
-                <p className="text-center" style={{
-                  color: subtitleSettings.textColor,
-                  fontSize: `${subtitleSettings.fontSize}px`
-                }}>{currentSubtitle}</p>
+              <div
+                  className="absolute left-0 right-0 px-4 py-2"
+                  style={{
+                    bottom: `${subtitleSettings.bottomOffset}px`,
+                    background: subtitleSettings.backgroundColor,
+                    fontFamily: subtitleSettings.fontFamily,
+                  }}
+              >
+                <p
+                    className="text-center"
+                    style={{
+                      color: subtitleSettings.textColor,
+                      fontSize: `${subtitleSettings.fontSize}px`,
+                    }}
+                >
+                  {currentSubtitle}
+                </p>
               </div>
           )}
           {status !== "streaming" && (
@@ -177,7 +228,9 @@ export const VideoStream: FC<VideoStreamProps> = ({
                   {status === "waiting" && (
                       <>
                         <p className="text-lg mb-2">Ожидание разрешения...</p>
-                        <p className="text-sm text-gray-600">Пожалуйста, разрешите доступ к камере и микрофону</p>
+                        <p className="text-sm text-gray-600">
+                          Пожалуйста, разрешите доступ к камере и микрофону
+                        </p>
                       </>
                   )}
                   {status === "error" && (
@@ -192,7 +245,8 @@ export const VideoStream: FC<VideoStreamProps> = ({
               </div>
           )}
           <div
-              className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2 font-mono whitespace-pre-wrap">
+              className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2 font-mono whitespace-pre-wrap"
+          >
             {debugInfo.split("\n").slice(-10).join("\n")}
           </div>
         </CardBody>
