@@ -41,7 +41,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
       sourceLang: string,
       targetLang: string
   ): Promise<string> => {
-    const response = await fetch("http://89.111.153.250:8000/api/translate", {
+    const response = await fetch("/api/translate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, source_lang: sourceLang, target_lang: targetLang }),
