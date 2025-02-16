@@ -22,6 +22,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
   const [debugInfo, setDebugInfo] = useState<string>("Starting...");
+  const [autoVoice, setAutoVoice] = useState<boolean>(false); // новая галочка
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -50,8 +51,27 @@ export const VideoStream: FC<VideoStreamProps> = ({
       throw new Error("Ошибка перевода");
     }
     const data = await response.json();
-    // Ожидается ответ вида: { "translation": "..." }
     return data.translation;
+  };
+
+  // Функция для автоматического озвучивания субтитра
+  const autoVoiceSubtitle = async (text: string) => {
+    try {
+      const ttsResponse = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, language }),
+      });
+      if (!ttsResponse.ok) {
+        throw new Error("Ошибка озвучивания текста");
+      }
+      const blob = await ttsResponse.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      audio.play();
+    } catch (err) {
+      console.error("TTS error:", err);
+    }
   };
 
   const startStream = async () => {
@@ -78,7 +98,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
       const settings = audioTrack.getSettings();
       setDebugInfo((prev) => prev + `\nAudio track settings: ${JSON.stringify(settings)}`);
 
-      // Создаем AudioContext без указания sampleRate
+      // Создаем AudioContext
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
 
@@ -95,30 +115,25 @@ export const VideoStream: FC<VideoStreamProps> = ({
       processor.onaudioprocess = (e) => {
         if (ws.readyState === WebSocket.OPEN) {
           const inputData = e.inputBuffer.getChannelData(0);
-
           const amplifiedData = new Float32Array(inputData.length);
           for (let i = 0; i < inputData.length; i++) {
             amplifiedData[i] = Math.max(-1, Math.min(1, inputData[i] * 2));
           }
-
           const intData = new Int16Array(inputData.length);
           for (let i = 0; i < inputData.length; i++) {
             intData[i] = Math.max(-32768, Math.min(32767, amplifiedData[i] * 32768));
           }
-
-          const maxAmplitude = Math.max(...Array.from(intData).map(Math.abs));
           console.log("Sending audio chunk:", {
             length: intData.length,
-            maxAmplitude: maxAmplitude,
+            maxAmplitude: Math.max(...Array.from(intData).map(Math.abs)),
           });
-
           ws.send(intData.buffer);
         }
       };
 
       ws.onmessage = (event) => {
         let originalText = event.data as string;
-        if (originalText.indexOf("DimaTorzok") !== -1 || originalText == 'Редактор субтитров А.Семкин Корректор А.Егорова') {
+        if (originalText.indexOf("DimaTorzok") !== -1 || originalText === 'Редактор субтитров А.Семкин Корректор А.Егорова') {
           originalText = 'Тишина';
         }
         const time = new Date().toLocaleTimeString();
@@ -127,6 +142,9 @@ export const VideoStream: FC<VideoStreamProps> = ({
           setCurrentSubtitle(originalText);
           onSubtitleChange({ time, text: originalText });
           setDebugInfo((prev) => prev + "\nReceived subtitle: " + originalText);
+          if (autoVoice) {
+            autoVoiceSubtitle(originalText);
+          }
         } else {
           (async () => {
             try {
@@ -137,12 +155,17 @@ export const VideoStream: FC<VideoStreamProps> = ({
               setDebugInfo(
                   (prev) => prev + "\nReceived subtitle: " + originalText + " -> " + translatedText
               );
+              if (autoVoice) {
+                autoVoiceSubtitle(translatedText);
+              }
             } catch (error) {
               console.error("Subtitle translation error:", error);
-              // При ошибке выводим оригинальный текст
               setCurrentSubtitle(originalText);
               onSubtitleChange({ time, text: originalText });
               setDebugInfo((prev) => prev + "\nReceived subtitle (untranslated): " + originalText);
+              if (autoVoice) {
+                autoVoiceSubtitle(originalText);
+              }
             }
           })();
         }
@@ -252,8 +275,19 @@ export const VideoStream: FC<VideoStreamProps> = ({
                 </div>
               </div>
           )}
+          {/* Блок для отладки и управления озвучиванием */}
           <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2 font-mono whitespace-pre-wrap">
             {debugInfo.split("\n").slice(-10).join("\n")}
+            <div className="mt-2">
+              <label className="flex items-center gap-2">
+                <input
+                    type="checkbox"
+                    checked={autoVoice}
+                    onChange={(e) => setAutoVoice(e.target.checked)}
+                />
+                <span>Озвучивать субтитры</span>
+              </label>
+            </div>
           </div>
         </CardBody>
       </Card>
