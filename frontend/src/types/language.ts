@@ -1,1 +1,1 @@
-export type SupportedLanguage = 'Русский' | 'English' | 'Испанский';
+export type SupportedLanguage = 'ru';

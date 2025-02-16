@@ -88,13 +88,13 @@ const TranscriptionPanel: FC<{
 };
 
 const Demo: FC = () => {
-  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('Русский');
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>("ru");
   const [showSummary, setShowSummary] = useState(false);
   const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([]);
   const [summaryEntries, setSummaryEntries] = useState<TranscriptEntry[]>([]);
   const handleVoiceText = async (text: string) => {
     try {
-      const response = await fetch('http://localhost:8000/api/tts', {
+      const response = await fetch('http://89.111.153.250:8000/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, language: selectedLanguage })
@@ -102,9 +102,7 @@ const Demo: FC = () => {
       if (!response.ok) {
         throw new Error('Ошибка озвучивания текста');
       }
-      // Получаем аудиоданные в виде blob
       const blob = await response.blob();
-      // Создаём URL для воспроизведения аудио
       const audioUrl = URL.createObjectURL(blob);
       const audio = new Audio(audioUrl);
       audio.play();

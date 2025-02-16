@@ -50,7 +50,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
       // Получаем актуальный sample rate из трека
       const audioTrack = stream.getAudioTracks()[0];
       const settings = audioTrack.getSettings();
-      const actualSampleRate = settings.sampleRate || 48000; // Обычно браузеры используют 48кГц
+      const actualSampleRate = settings.sampleRate || 48000;
 
       setDebugInfo(prev => prev + `\nAudio track settings: ${JSON.stringify(settings)}`);
 
@@ -62,7 +62,7 @@ export const VideoStream: FC<VideoStreamProps> = ({
       const processor = audioContext.createScriptProcessor(1024, 1, 1);
 
       // Создаем WebSocket соединение
-      const ws = new WebSocket('ws://localhost:8000/ws');
+      const ws = new WebSocket('ws://89.111.153.250:8000/ws');
       wsRef.current = ws;
 
       source.connect(processor);
@@ -72,20 +72,16 @@ export const VideoStream: FC<VideoStreamProps> = ({
         if (ws.readyState === WebSocket.OPEN) {
           const inputData = e.inputBuffer.getChannelData(0);
 
-          // Увеличим громкость
           const amplifiedData = new Float32Array(inputData.length);
           for (let i = 0; i < inputData.length; i++) {
-            // Усиливаем сигнал в 2 раза
             amplifiedData[i] = Math.max(-1, Math.min(1, inputData[i] * 2));
           }
 
-          // Конвертируем в Int16
           const intData = new Int16Array(inputData.length);
           for (let i = 0; i < inputData.length; i++) {
             intData[i] = Math.max(-32768, Math.min(32767, amplifiedData[i] * 32768));
           }
 
-          // Добавим логирование
           const maxAmplitude = Math.max(...Array.from(intData).map(Math.abs));
           console.log('Sending audio chunk:', {
             length: intData.length,
